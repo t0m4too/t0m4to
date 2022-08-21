@@ -1,7 +1,7 @@
 <!-- _coverpage.md -->
 
 <!-- ![logo](log.png) -->
-<img width="300" style="border-radius: 50%" src="log.png">
+<img width="300" style="border-radius: 50%" src="img/log.png">
 
 # **t0m4to** <small>ovo</small>
 

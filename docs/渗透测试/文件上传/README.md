@@ -1,0 +1,723 @@
+# 文件上传
+
+## 漏洞成因
+
+开发者没有对用户上传的文件做严格的验证，导致用户可以上传后门木马
+
+
+
+## 利用方法
+
+上传 webshell
+
+
+
+## 先决条件
+
+webshell 可以成功上传
+
+webshell 所在路径
+
+
+
+## upload-labs 靶场
+
+### Pass-1(js 过滤)
+
+> 源代码
+
+```js
+function checkFile() {
+    var file = document.getElementsByName('upload_file')[0].value;
+    if (file == null || file == "") {
+        alert("请选择要上传的文件!");
+        return false;
+    }
+    //定义允许上传的文件类型
+    var allow_ext = ".jpg|.png|.gif";
+    //提取上传文件的类型
+    var ext_name = file.substring(file.lastIndexOf("."));
+    //判断上传文件类型是否允许上传
+    if (allow_ext.indexOf(ext_name + "|") == -1) {
+        var errMsg = "该文件不允许上传，请上传" + allow_ext + "类型的文件,当前文件类型为：" + ext_name;
+        alert(errMsg);
+        return false;
+    }
+}
+```
+
+> 代码分析
+
+​	使用 js 判断上传文件类型，只允许上传 jpg、png、gif 文件，由于 js 运行在客户端浏览器，可以借助这个特性进行绕过
+
+> F12 修改或删除限制格式的js脚本
+
+1. 修改允许上传 php 文件，回车执行生效
+
+![](../../img/文件上传/2022-05-25-19-32-15.png)
+    
+
+2. 文件成功上传
+
+![](../../img/文件上传/2022-05-25-19-35-49.png)
+
+3. 验证 webshell
+
+![](../../img/文件上传/2022-05-25-19-36-59.png)
+
+> 将提交表单保存到本地html，action指向Pass-1地址，没有任何js脚本限制
+
+1. 创建 form.html 表单文件
+
+![](../../img/文件上传/2022-05-25-19-40-46.png)
+
+2. 使用 form.html 上传 webshell
+
+![](../../img/文件上传/2022-05-25-19-42-46.png)
+
+3. 验证 webshell
+
+![](../../img/文件上传/2022-05-25-19-45-33.png)
+
+> burpsuite 抓包改后缀名
+
+1. 将 webshell 后缀名修改为 png
+
+![](../../img/文件上传/2022-05-25-19-48-21.png)
+
+2. 上传 webshell
+
+![](../../img/文件上传/2022-05-25-19-52-30.png)
+
+3. bp 抓包将 png 后缀改为 php 后缀
+
+![](../../img/文件上传/2022-05-25-19-53-51.png)
+
+4. 验证 webshell
+
+![](../../img/文件上传/2022-05-25-19-54-17.png)
+
+### Pass-2( 过滤 Content-Type)
+
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        if (($_FILES['upload_file']['type'] == 'image/jpeg') || ($_FILES['upload_file']['type'] == 
+        'image/png') || ($_FILES['upload_file']['type'] == 'image/gif')) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH . '/' . $_FILES['upload_file']['name']            
+            if (move_uploaded_file($temp_file, $img_path)) {
+                $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '文件类型不正确，请重新上传！';
+        }
+    } else {
+        $msg = UPLOAD_PATH.'文件夹不存在,请手工创建！';
+    }
+}
+```
+
+> 代码分析
+
+​	代码使用 $_FILES['upload_file']['type'] 限制上传的文件类型，$_FILES['upload_file']['type'] 的类型识别是基于请求体中 Content-Type 信息的，故可以通过修改请求头 Content-Type 数据进行绕过
+
+> 直接上传 webshell，bp 修改请求包 Content-Type: application/octet-stream 为Content-Type: image/png
+
+1. 上传 shell.php
+
+![](../../img/文件上传/2022-05-25-20-49-59.png)
+    
+2. bp 抓包修改 Content-Type
+
+![](../../img/文件上传/2022-05-25-20-48-33.png)
+    
+
+3. 验证 webshell
+
+![](../../img/文件上传/2022-05-25-20-50-25.png)
+
+
+### Pass-3(httpd.conf 文件平替后缀)
+
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array('.asp','.aspx','.php','.jsp');
+        $file_name = trim($_FILES['upload_file']['name']);
+        $file_name = deldot($file_name);//删除文件名末尾的点
+        $file_ext = strrchr($file_name, '.');
+        $file_ext = strtolower($file_ext); //转换为小写
+        $file_ext = str_ireplace('::$DATA', '', $file_ext);//去除字符串::$DATA
+        $file_ext = trim($file_ext); //收尾去空
+
+        if(!in_array($file_ext, $deny_ext)) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH.'/'.date("YmdHis").rand(1000,9999).$file_ext;            
+            if (move_uploaded_file($temp_file,$img_path)) {
+                 $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '不允许上传.asp,.aspx,.php,.jsp后缀文件！';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析
+
+​	对上传文件后缀进行过滤，并且重命名后再保存到服务器。
+
+> 过滤上传文件后缀，可以使用其他平替的后缀名文件，在 httpd.conf 文件可查看参数 AddType application/x-httpd-php、.php、
+> .php3、.phtml，以上后缀文件与 .php 后缀文件效果相同
+
+![](D:\icq\t0m4to.github.io\docs\img\README\2022-05-25-20-52-41.png)
+
+重命名后保存的文件路径和文件名无法看出，在当前靶场可以右键查看上传的图片地址解决
+![](D:\icq\t0m4to.github.io\docs\img\README\2022-05-25-21-05-04.png)
+
+> 将 shell 后缀修改为 .php3 或其他平替后缀上传
+
+1. 上传 .php3 后缀的 shell
+
+![](../../img/文件上传/2022-05-25-20-56-50.png)
+
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-25-20-58-43.png)
+
+### Pass-4(.htaccess 文件绕过)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array(".php",".php5",".php4",".php3",".php2","php1",".html",".htm",".phtml",".pht",
+        ".pHp",".pHp5",".pHp4",".pHp3",".pHp2","pHp1",".Html",".Htm",".pHtml",".jsp",".jspa",".jspx",
+        ".jsw",".jsv",".jspf",".jtml",".jSp",".jSpx",".jSpa",".jSw",".jSv",".jSpf",".jHtml",".asp",".aspx",
+        ".asa",".asax",".ascx",".ashx",".asmx",".cer",".aSp",".aSpx",".aSa",".aSax",".aScx",
+        ".aShx",".aSmx",".cEr",".sWf",".swf");
+        $file_name = trim($_FILES['upload_file']['name']);
+        $file_name = deldot($file_name);//删除文件名末尾的点
+        $file_ext = strrchr($file_name, '.');
+        $file_ext = strtolower($file_ext); //转换为小写
+        $file_ext = str_ireplace('::$DATA', '', $file_ext);//去除字符串::$DATA
+        $file_ext = trim($file_ext); //收尾去空
+
+        if (!in_array($file_ext, $deny_ext)) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH.'/'.date("YmdHis").rand(1000,9999).$file_ext;
+            if (move_uploaded_file($temp_file, $img_path)) {
+                $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '此文件不允许上传!';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析
+
+​	此时代码没有禁用 .htaccess 后缀文件，可以借助 Apache 的配置文件 .htaccess 将所在目录任意后缀文件当成 .php 后缀文件执行
+
+> 利用 .htaccess 文件解析文件
+
+1. 将同目录所有文件当成 php 文件执行，配置如下
+
+![](D:\icq\t0m4to.github.io\docs\img\README\2022-05-25-21-19-23.png)
+
+2. 将 phpinfo.png 当成 .php 后缀文件执行，配置如下
+
+![](D:\icq\t0m4to.github.io\docs\img\README\2022-05-25-21-25-45.png)
+
+3. 上传修改后缀为png格式的后门文件
+
+![](../../img/文件上传/2022-05-25-23-23-59.png)
+    
+
+4. 再上传 .htaccess 文件
+
+![](../../img/文件上传/2022-05-25-23-25-19.png) 
+
+3. 验证 phpinfo
+
+![](../../img/文件上传/2022-05-25-23-27-29.png)
+
+### Pass-5(Windows 大小写后缀)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array(".php",".php5",".php4",".php3",".php2",".html",".htm",".phtml",".pht",".pHp",
+        ".pHp5",".pHp4",".pHp3",".pHp2",".Html",".Htm",".pHtml",".jsp",".jspa",".jspx",".jsw",".jsv",
+        ".jspf",".jtml",".jSp",".jSpx",".jSpa",".jSw",".jSv",".jSpf",".jHtml",".asp",".aspx",".asa",
+        ".asax",".ascx",".ashx",".asmx",".cer",".aSp",".aSpx",".aSa",".aSax",".aScx",".aShx",".aSmx",
+        ".cEr",".sWf",".swf",".htaccess");
+        $file_name = trim($_FILES['upload_file']['name']);
+        $file_name = deldot($file_name);//删除文件名末尾的点
+        $file_ext = strrchr($file_name, '.');
+        $file_ext = str_ireplace('::$DATA', '', $file_ext);//去除字符串::$DATA
+        $file_ext = trim($file_ext); //首尾去空
+
+        if (!in_array($file_ext, $deny_ext)) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH.'/'.date("YmdHis").rand(1000,9999).$file_ext;
+            if (move_uploaded_file($temp_file, $img_path)) {
+                $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '此文件类型不允许上传！';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析
+
+​	.htaccess 被过滤了，但是没有了 strtolower() 函数，可以利用 Windows 不区分大小写特性绕过
+
+> 后缀名修改大小写
+
+1. 将 shell.php 后缀改为 Php 上传
+
+![](../../img/文件上传/2022-05-25-23-35-08.png)
+
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-25-23-33-55.png)
+
+
+### Pass-6(Windows 文件末尾空格)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array(".php",".php5",".php4",".php3",".php2",".html",".htm",".phtml",".pht",".pHp",
+        ".pHp5",".pHp4",".pHp3",".pHp2",".Html",".Htm",".pHtml",".jsp",".jspa",".jspx",".jsw",".jsv",
+        ".jspf",".jtml",".jSp",".jSpx",".jSpa",".jSw",".jSv",".jSpf",".jHtml",".asp",".aspx",".asa",
+        ".asax",".ascx",".ashx",".asmx",".cer",".aSp",".aSpx",".aSa",".aSax",".aScx",".aShx",".aSmx",
+        ".cEr",".sWf",".swf",".htaccess");
+        $file_name = $_FILES['upload_file']['name'];
+        $file_name = deldot($file_name);//删除文件名末尾的点
+        $file_ext = strrchr($file_name, '.');
+        $file_ext = strtolower($file_ext); //转换为小写
+        $file_ext = str_ireplace('::$DATA', '', $file_ext);//去除字符串::$DATA
+        
+        if (!in_array($file_ext, $deny_ext)) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH.'/'.date("YmdHis").rand(1000,9999).$file_ext;
+            if (move_uploaded_file($temp_file,$img_path)) {
+                $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '此文件不允许上传';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析
+
+​	与前面关卡比较，少了 trim 函数（去掉指定字符，若没有指定则默认去掉左右空格）
+
+> shell.php 的 .php 后面添加空格，由于 Windows 的处理机制会自动过滤空格处理
+
+1. bp 抓包，在 shell.php 文件末尾加上空格
+
+![](../../img/文件上传/2022-05-25-23-46-40.png)
+
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-25-23-47-22.png)
+
+### Pass-7(Windows 文件符号“.”)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array(".php",".php5",".php4",".php3",".php2",".html",".htm",".phtml",".pht",".pHp",
+        ".pHp5",".pHp4",".pHp3",".pHp2",".Html",".Htm",".pHtml",".jsp",".jspa",".jspx",".jsw",".jsv",
+        ".jspf",".jtml",".jSp",".jSpx",".jSpa",".jSw",".jSv",".jSpf",".jHtml",".asp",".aspx",".asa",
+        ".asax",".ascx",".ashx",".asmx",".cer",".aSp",".aSpx",".aSa",".aSax",".aScx",".aShx",".aSmx",
+        ".cEr",".sWf",".swf",".htaccess");
+        $file_name = trim($_FILES['upload_file']['name']);
+        $file_ext = strrchr($file_name, '.');
+        $file_ext = strtolower($file_ext); //转换为小写
+        $file_ext = str_ireplace('::$DATA', '', $file_ext);//去除字符串::$DATA
+        $file_ext = trim($file_ext); //首尾去空
+        
+        if (!in_array($file_ext, $deny_ext)) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH.'/'.$file_name;
+            if (move_uploaded_file($temp_file, $img_path)) {
+                $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '此文件类型不允许上传！';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析
+
+​	去掉了 deldot() 函数（去掉末尾的.）
+
+> shell.php 文件名后加.变成 shell.php.（由于 Windows 的处理机制，此时文件变成了空后缀名，也可以正常执行）
+
+1. bp 抓包，修改 shell 文件后缀
+
+![](../../img/文件上传/2022-05-25-23-54-29.png)
+    
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-25-23-55-10.png)
+
+### Pass-8(Windows::$DATA 流文件)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array(".php",".php5",".php4",".php3",".php2",".html",".htm",".phtml",".pht",".pHp",
+        ".pHp5",".pHp4",".pHp3",".pHp2",".Html",".Htm",".pHtml",".jsp",".jspa",".jspx",".jsw",".jsv",
+        ".jspf",".jtml",".jSp",".jSpx",".jSpa",".jSw",".jSv",".jSpf",".jHtml",".asp",".aspx",".asa",
+        ".asax",".ascx",".ashx",".asmx",".cer",".aSp",".aSpx",".aSa",".aSax",".aScx",".aShx",".aSmx",
+        ".cEr",".sWf",".swf",".htaccess");
+        $file_name = trim($_FILES['upload_file']['name']);
+        $file_name = deldot($file_name);//删除文件名末尾的点
+        $file_ext = strrchr($file_name, '.');
+        $file_ext = strtolower($file_ext); //转换为小写
+        $file_ext = trim($file_ext); //首尾去空
+        
+        if (!in_array($file_ext, $deny_ext)) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH.'/'.date("YmdHis").rand(1000,9999).$file_ext;
+            if (move_uploaded_file($temp_file, $img_path)) {
+                $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '此文件类型不允许上传！';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析
+
+​	去掉了去除字符串的函数 str_ireplace('::$DATA', '', $file_ext)，在 Windows中::$DATA 是 NTFS 流文件
+
+```tex
+1、新建一个普通文件 1.txt 
+    echo hello123 > 1.txt
+2、为 1.txt 添加一个 data 流，流名叫 2.txt
+    echo hello456 > 1.txt:2.txt:$DATA
+3、查看流文件
+    dir /r
+4、读取流文件(记事本形式打开)
+    notepad 1.txt:2.txt
+5、删除流文件(流文件无法直接删除，需要删除宿主文件)
+    del 1.txt
+```
+
+> 文件后添加字符串 ::$DATA 即可绕过
+
+1. bp 抓包，文件名添加字符
+
+![](../../img/文件上传/2022-05-26-00-24-38.png)
+
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-26-00-25-49.png)
+
+### Pass-9(Windows[.]+[ 空格 ]+[.])
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array(".php",".php5",".php4",".php3",".php2",".html",".htm",".phtml",".pht",".pHp",
+        ".pHp5",".pHp4",".pHp3",".pHp2",".Html",".Htm",".pHtml",".jsp",".jspa",".jspx",".jsw",".jsv",
+        ".jspf",".jtml",".jSp",".jSpx",".jSpa",".jSw",".jSv",".jSpf",".jHtml",".asp",".aspx",".asa",
+        ".asax",".ascx",".ashx",".asmx",".cer",".aSp",".aSpx",".aSa",".aSax",".aScx",".aShx",".aSmx",
+        ".cEr",".sWf",".swf",".htaccess");
+        $file_name = trim($_FILES['upload_file']['name']);
+        $file_name = deldot($file_name);//删除文件名末尾的点
+        $file_ext = strrchr($file_name, '.');
+        $file_ext = strtolower($file_ext); //转换为小写
+        $file_ext = str_ireplace('::$DATA', '', $file_ext);//去除字符串::$DATA
+        $file_ext = trim($file_ext); //首尾去空
+        
+        if (!in_array($file_ext, $deny_ext)) {
+            $temp_file = $_FILES['upload_file']['tmp_name'];
+            $img_path = UPLOAD_PATH.'/'.$file_name;
+            if (move_uploaded_file($temp_file, $img_path)) {
+                $is_upload = true;
+            } else {
+                $msg = '上传出错！';
+            }
+        } else {
+            $msg = '此文件类型不允许上传！';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析
+
+​	多加了一个 trim($file_ext) 函数，当上传一个 shell.php.[ 空格 ]. 文件时先经过 deldot() 函数处理，变成 shell.php[ 空格 ]，再经过 trim() 函数处理变成 shell.php.,成为 Pass-7 的状态
+
+> 在文件后缀添加 .[空格].
+
+1. bp 抓包添加，修改文件后缀
+
+![](../../img/文件上传/2022-05-26-01-20-50.png)
+
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-26-01-22-14.png)
+
+### Pass-10(后缀名双写)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if (isset($_POST['submit'])) {
+    if (file_exists(UPLOAD_PATH)) {
+        $deny_ext = array("php","php5","php4","php3","php2","html","htm","phtml","pht","jsp","jspa",
+        "jspx","jsw","jsv","jspf","jtml","asp","aspx","asa","asax","ascx","ashx","asmx","cer","swf",
+        "htaccess");
+
+        $file_name = trim($_FILES['upload_file']['name']);
+        $file_name = str_ireplace($deny_ext,"", $file_name);
+        $temp_file = $_FILES['upload_file']['tmp_name'];
+        $img_path = UPLOAD_PATH.'/'.$file_name;        
+        if (move_uploaded_file($temp_file, $img_path)) {
+            $is_upload = true;
+        } else {
+            $msg = '上传出错！';
+        }
+    } else {
+        $msg = UPLOAD_PATH . '文件夹不存在,请手工创建！';
+    }
+}
+```
+> 代码分析    
+
+​	使用了 str_ireplace($deny_ext,"", $file_name) 将文件后缀名过滤,比如将shell.php 过滤成 webshell.,可以采用双写绕过
+
+> 双写后缀名
+
+1. bp 抓包，将 shell.php 文件后缀名修改为 shell.php.php 或者 webshell.pphphp
+
+![](../../img/文件上传/2022-05-26-01-29-11.png)
+
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-26-01-29-35.png)
+
+
+### Pass-11(GET 型 00 截断)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if(isset($_POST['submit'])){
+    $ext_arr = array('jpg','png','gif');
+    $file_ext = substr($_FILES['upload_file']['name'],strrpos($_FILES['upload_file']['name'],".")+1);
+    if(in_array($file_ext,$ext_arr)){
+        $temp_file = $_FILES['upload_file']['tmp_name'];
+        $img_path = $_GET['save_path']."/".rand(10, 99).date("YmdHis").".".$file_ext;
+
+        if(move_uploaded_file($temp_file,$img_path)){
+            $is_upload = true;
+        } else {
+            $msg = '上传出错！';
+        }
+    } else{
+        $msg = "只允许上传.jpg|.png|.gif类型文件！";
+    }
+}
+```
+> 代码分析
+
+​	保存文件时使用了GET获取文件位置，根据 php 版本特性，处理 %00 时会自动过滤后面的代码，将 $GET 后面的参数截断，可以达成绕过效果
+
+    # 00截断的前提条件
+    
+    1、PHP版本小于5.3.29
+     
+    2、magic_quotes_goc=Off
+
+> GET%00 截断
+
+1. bp 抓包，在 GET 传参数据后加文件名和 %00，修改 filename 后缀为 png
+
+![](../../img/文件上传/2022-05-26-01-58-01.png)
+
+2. 验证 shell
+
+![](../../img/文件上传/2022-05-26-01-59-57.png)
+
+
+### Pass-12(POST 型 00 截断)
+> 源代码
+
+```php
+$is_upload = false;
+$msg = null;
+if(isset($_POST['submit'])){
+    $ext_arr = array('jpg','png','gif');
+    $file_ext = substr($_FILES['upload_file']['name'],strrpos($_FILES['upload_file']['name'],".")+1);
+    if(in_array($file_ext,$ext_arr)){
+        $temp_file = $_FILES['upload_file']['tmp_name'];
+        $img_path = $_POST['save_path']."/".rand(10, 99).date("YmdHis").".".$file_ext;
+
+        if(move_uploaded_file($temp_file,$img_path)){
+            $is_upload = true;
+        } else {
+            $msg = "上传失败";
+        }
+    } else {
+        $msg = "只允许上传.jpg|.png|.gif类型文件！";
+    }
+}
+
+```
+> 代码分析
+
+​	将 Pass-11 改成了 POST 形式
+
+ 00 截断的前提条件
+
+```tex
+1、PHP 版本小于 5.3.29
+ 
+2、magic_quotes_goc=Off
+```
+
+> POST%00 截断
+
+1. 上传 shell.php，bp 抓包，在 POST 数据后加 %00，由于 post 不会对 url 解码，需要手动将 %00url 解码
+
+![](../../img/文件上传/2022-05-26-07-32-54.png)
+
+2. 修改 Content-Type 和 filename 后缀为 png
+
+![](../../img/文件上传/2022-05-26-07-35-11.png)
+
+3. 验证 shell
+
+![](../../img/文件上传/2022-05-26-07-35-57.png)
+![](../../img/文件上传/2022-05-26-07-36-19.png)
+
+
+### Pass-13(文件包含 + 文件上传组合拳)
+> 源代码
+
+```php
+function getReailFileType($filename){
+    $file = fopen($filename, "rb");
+    $bin = fread($file, 2); //只读2字节
+    fclose($file);
+    $strInfo = @unpack("C2chars", $bin);    
+    $typeCode = intval($strInfo['chars1'].$strInfo['chars2']);    
+    $fileType = '';    
+    switch($typeCode){      
+        case 255216:            
+            $fileType = 'jpg';
+            break;
+        case 13780:            
+            $fileType = 'png';
+            break;        
+        case 7173:            
+            $fileType = 'gif';
+            break;
+        default:            
+            $fileType = 'unknown';
+        }    
+        return $fileType;
+}
+
+$is_upload = false;
+$msg = null;
+if(isset($_POST['submit'])){
+    $temp_file = $_FILES['upload_file']['tmp_name'];
+    $file_type = getReailFileType($temp_file);
+
+    if($file_type == 'unknown'){
+        $msg = "文件未知，上传失败！";
+    }else{
+        $img_path = UPLOAD_PATH."/".rand(10, 99).date("YmdHis").".".$file_type;
+        if(move_uploaded_file($temp_file,$img_path)){
+            $is_upload = true;
+        } else {
+            $msg = "上传出错！";
+        }
+    }
+}
+```
+> 代码分析
+
+​	通过识别文件二进制前两个字符判断文件类型，一般情况无法绕过，当前环境可以通过配合文件包含(让任意文件当 php 执行)漏洞完成 webshell 上传
+
+> 配合文件包含漏洞，上传二进制识别为图片的码，将图片码当成 php 执行
+
+1. 生成图片码上传
+
+![](../../img/文件上传/2022-05-26-08-15-42.png)
+
+2. 利用文件包含漏洞查看图片码
+
+![](../../img/文件上传/2022-05-26-08-19-10.png)
+
+3. 使用步骤 2 地址验证 shell
+
+![](../../img/文件上传/2022-05-26-08-18-43.png)
