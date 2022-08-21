@@ -4,4 +4,4 @@
 
 hello
 
-[指南](/guide.md)
+[guide](/guide.md)

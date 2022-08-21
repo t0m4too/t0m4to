@@ -3,7 +3,7 @@
 <!-- ![logo](log.png) -->
 <img width="300" style="border-radius: 50%" src="log.png">
 
-# **t0m4to** <small>V1.0</small>
+# **t0m4to** <small>ovo</small>
 
 > 一个神奇的文档网站生成器。
 
@@ -12,4 +12,4 @@
 - 众多主题
 
 [GitHub](https://github.com/t0m4too)
-[Get Started](/guide)
+[Get Started](/README.md)
