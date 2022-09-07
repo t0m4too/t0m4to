@@ -1,8 +1,8 @@
 <!-- docs/_sidebar.md -->
 
 * 渗透测试
-  * [文件上传](/渗透测试/file_upload.md)
-  * [文件包含](/渗透测试/file_include.md)
+  * [文件上传](/渗透测试/文件上传.md)
+  * [文件包含](/渗透测试/文件包含.md)
   * [XSS](/渗透测试/XSS.md)
   * [CSRF](/渗透测试/CSRF.md)
   * [SSRF](/渗透测试/SSRF.md)
