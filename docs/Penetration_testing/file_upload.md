@@ -56,10 +56,6 @@ function checkFile() {
 
 <<<<<<< HEAD:docs/Penetration testing/file_upload.md
 ![](../../img/file_upload/2022-05-25-19-32-15.png)
-=======
-![](.\..\..\img\文件上传\2022-05-25-19-32-15.png)
->>>>>>> cd41803de5a239402a8cc06a4fd397eebf9a25e5:docs/渗透测试/文件上传.md
-    
 
 2. 文件成功上传
 
