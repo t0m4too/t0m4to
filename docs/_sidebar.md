@@ -6,6 +6,7 @@
   * [XSS](/渗透测试/XSS.md)
   * [CSRF](/渗透测试/CSRF.md)
   * [SSRF](/渗透测试/SSRF.md)
+  * [SSRF](/渗透测试/SSRF.md)
 
 * 编程语言
   * [Python](/编程语言/Python/)
