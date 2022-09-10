@@ -7,9 +7,10 @@
 
 > 一个神奇的文档网站生成器。
 
-- 简单、轻便 (压缩后 ~21kB)
-- 无需生成 html 文件
-- 众多主题
+- 吾生也有涯
+- 而知也无涯
+- 以有涯随无涯，殆已
+- 已而为知者，殆而已矣
 
 [GitHub](https://github.com/t0m4too)
 [Get Started](/README.md)
