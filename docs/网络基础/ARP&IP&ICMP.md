@@ -30,7 +30,7 @@ PC1、PC2：终端设备。
 
 由于PC1与PC2未进行过通信，首次通信时将产生ARP协议数据包，匹配终端MAC地址。
 
-![image-20220912225314191](D:\icq\t0m4to.github.io\docs\img\ARP&IP&ICMP\image-20220912225314191.png)
+![image-20220912225314191](..\img\ARP&IP&ICMP\image-20220912225314191.png)
 
  
 
