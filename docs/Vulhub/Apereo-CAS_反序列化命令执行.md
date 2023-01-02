@@ -8,7 +8,6 @@ Apereo CAS是一款Apereo发布的集中认证服务平台，常被用于企业�
 
 > 前提条件
 
-版本：ActiveMQ < 4.1.7 
 
 
 
