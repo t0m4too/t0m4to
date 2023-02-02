@@ -1,3 +1,5 @@
+<!-- docs/sidebar.md -->
+
 - [Vulhub](Vulhub/)
   - [ActiveMQ_CVE-2015-5254](Vulhub/ActiveMQ_CVE-2015-5254.md)
   - [ActiveMQ_CVE-2016-3088](Vulhub/ActiveMQ_CVE-2016-3088.md)
