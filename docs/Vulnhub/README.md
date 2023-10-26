@@ -1,3 +1,0 @@
-- [返回上一级 [docs]]()
-- [Vulnhub](Vulnhub/)
-  - [JANGOW：1.0.1](Vulnhub/JANGOW：1.0.1.md)
